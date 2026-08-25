@@ -1,4 +1,5 @@
-name: CD - Deploy to OpenStack VM
+name: CD - Deploy to K3s Cluster
+
 on:
   workflow_dispatch:
   workflow_run:
@@ -6,6 +7,7 @@ on:
     types:
       - completed
     branches: [main]
+
 jobs:
   deploy:
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
@@ -17,17 +19,18 @@ jobs:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
-      - name: Deploy via SSH
+
+      - name: Deploy via SSH to K3s master
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.VM_TAILSCALE_IP }}
-          username: ${{ secrets.VM_USER }}
+          username: ubuntu
           key: ${{ secrets.VM_SSH_KEY }}
-          command_timeout: 40m
+          command_timeout: 10m
           script: |
-            ssh -o StrictHostKeyChecking=no -i ~/deploy_key ubuntu@172.24.4.122 '
-              cd ~/intern-management-system &&
-              git pull origin main &&
-              docker compose pull &&
-              docker compose up -d
-            '
+            # Rollout restart pour puller les nouvelles images
+            kubectl -n ims rollout restart deploy/backend
+            kubectl -n ims rollout restart deploy/frontend
+            # Attendre que les rollouts soient terminés
+            kubectl -n ims rollout status deploy/backend --timeout=300s
+            kubectl -n ims rollout status deploy/frontend --timeout=300s
