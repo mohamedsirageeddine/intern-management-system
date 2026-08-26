@@ -64,7 +64,7 @@ const axiosPrivate = useAxiosPrivate();
 const navigate = useNavigate();
 
     const title = "Intern Management System";
-    const footer = "IMS ©2023"
+    const footer = "IMS ©2026"
 
 
 const getData = async () => {
