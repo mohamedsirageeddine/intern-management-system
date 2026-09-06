@@ -1,0 +1,58 @@
+name: CD - Full Infra Deploy (Terraform + Ansible)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy infra + configure cluster on new ubuntuserv
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VM_TAILSCALE_IP_UBS }}
+          username: stack
+          key: ${{ secrets.VM_SSH_KEY_UBS }}
+          command_timeout: 40m
+          script: |
+            set -e
+
+            echo "===> Terraform: provisioning infra"
+            cd ~/terraform-ims
+            export OS_CLOUD=devstack-ims
+            terraform init -input=false
+            terraform apply -auto-approve
+
+            echo "===> Ansible: fix DNS"
+            cd ~/ansible-ims
+            ansible-playbook -i inventory.ini fix-dns.yml
+
+            echo "===> Ansible: install k3s"
+            ansible-playbook -i inventory.ini install-k3s.yml
+
+            echo "===> Ansible: fix git config"
+            ansible-playbook -i inventory.ini fix-git-config.yml
+
+            echo "===> Ansible: deploy app"
+            ansible-playbook -i inventory.ini deploy-app.yml
+
+            echo "===> Ansible: fix logo"
+            ansible-playbook -i inventory.ini fix-logo.yml
+
+            echo "===> Ansible: install helm"
+            ansible-playbook -i inventory.ini install-helm.yml
+
+            echo "===> Ansible: deploy monitoring stack"
+            ansible-playbook -i inventory.ini monitoring.yml
+
+            echo "===> Ansible: apply custom alert rules"
+            ansible-playbook -i inventory.ini alert-rules.yml
+
+            echo "===> Full deployment complete"
