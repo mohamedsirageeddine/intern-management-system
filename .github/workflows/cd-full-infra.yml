@@ -30,8 +30,27 @@ jobs:
             terraform init -input=false
             terraform apply -auto-approve
 
-            echo "===> Ansible: fix DNS"
+            echo "===> Terraform: extracting outputs"
+            MASTER_IP=$(terraform output -json master_floating_ip | jq -r '.')
+            WORKER_IPS=$(terraform output -json workers_floating_ip)
+            WORKER1_IP=$(echo "$WORKER_IPS" | jq -r '.ims_worker')
+            WORKER2_IP=$(echo "$WORKER_IPS" | jq -r '.ims_worker2')
+
+            echo "Master IP: $MASTER_IP"
+            echo "Worker1 IP: $WORKER1_IP"
+            echo "Worker2 IP: $WORKER2_IP"
+
+            echo "===> Updating Ansible inventory.ini with new floating IPs"
             cd ~/ansible-ims
+
+            sed -i "/^ims_master /s/ansible_host=[0-9.]*/ansible_host=${MASTER_IP}/" inventory.ini
+            sed -i "/^ims_worker /s/ansible_host=[0-9.]*/ansible_host=${WORKER1_IP}/" inventory.ini
+            sed -i "/^ims_worker2 /s/ansible_host=[0-9.]*/ansible_host=${WORKER2_IP}/" inventory.ini
+
+            echo "===> Updated inventory.ini:"
+            cat inventory.ini
+
+            echo "===> Ansible: fix DNS"
             ansible-playbook -i inventory.ini fix-dns.yml
 
             echo "===> Ansible: install k3s"
