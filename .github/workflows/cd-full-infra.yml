@@ -49,6 +49,8 @@ jobs:
 
             echo "===> Updated inventory.ini:"
             cat inventory.ini
+            
+            sleep 300
 
             echo "===> Ansible: fix DNS"
             ansible-playbook -i inventory.ini fix-dns.yml
